@@ -56,7 +56,20 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
 .brand-copy strong { display: block; font-size: 12px; font-weight: 800; letter-spacing: .17em; }
 .brand-copy small { display: block; margin-top: 5px; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .15em; }
 .topbar-tools { display: flex; align-items: center; justify-content: flex-end; gap: 18px; min-width: 0; }
-.connection-status { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  min-height: 43px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #191b22;
+  transition: border-color .15s ease, background .15s ease;
+}
+.connection-status[data-state="connected"] { border-color: #315b49; background: #17231f; }
+.connection-status[data-state="permission"] { border-color: #6c5431; background: #252117; }
 .status-indicator { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: #8b909d; box-shadow: 0 0 0 4px rgb(139 144 157 / 10%); }
 .connection-status[data-state="connected"] .status-indicator { background: var(--good); box-shadow: 0 0 0 4px rgb(101 214 162 / 10%); }
 .connection-status[data-state="permission"] .status-indicator { background: var(--warning); box-shadow: 0 0 0 4px rgb(232 189 115 / 10%); }
