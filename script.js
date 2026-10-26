@@ -12,15 +12,12 @@
   const connectionSub = $("#connection-sub");
   const browserNotice = $("#browser-notice");
 
-  const TARGET_FILE = ["site", "index.html"];
   const TARGET_ATTRIBUTE = "data-config-key";
   const TARGET_VALUE = "topbarSlogan";
 
-  let rootHandle = null;
   let siteDirectoryHandle = null;
   let fileHandle = null;
   let originalHtml = "";
-  let currentFileName = "";
 
   function setStatus(message, type = "") {
     saveStatus.textContent = message;
@@ -34,82 +31,82 @@
     connectButton.textContent = "Change website folder";
   }
 
-  function escapeSelector(value) {
-    if (window.CSS && typeof CSS.escape === "function") return CSS.escape(value);
-    return value.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
-  }
-
   function readSlogan(html) {
-    const documentCopy = new DOMParser().parseFromString(html, "text/html");
-    const element = documentCopy.querySelector(
-      "[" + TARGET_ATTRIBUTE + '="' + escapeSelector(TARGET_VALUE) + '"]'
-    );
-    if (!element) {
-      throw new Error(
-        'Could not find the element marked data-config-key="topbarSlogan" in site/index.html.'
-      );
-    }
-    return element.textContent ?? "";
-  }
-
-  function replaceSlogan(html, newSlogan) {
-    const documentCopy = new DOMParser().parseFromString(html, "text/html");
-    const elements = documentCopy.querySelectorAll(
-      "[" + TARGET_ATTRIBUTE + '="' + escapeSelector(TARGET_VALUE) + '"]'
+    const parsed = new DOMParser().parseFromString(html, "text/html");
+    const elements = parsed.querySelectorAll(
+      "[" + TARGET_ATTRIBUTE + '="' + TARGET_VALUE + '"]'
     );
     if (elements.length !== 1) {
       throw new Error(
-        "Expected exactly one topbar slogan element, but found " + elements.length + ". No file was changed."
+        'Expected exactly one element marked data-config-key="topbarSlogan" in site/index.html; found ' +
+        elements.length + "."
       );
     }
-
-    elements[0].textContent = newSlogan;
-    const serialized = "<!doctype html>\n" + documentCopy.documentElement.outerHTML;
-    return serialized;
+    return elements[0].textContent ?? "";
   }
 
-  async function getFile(directory, filename, options) {
-    return directory.getFileHandle(filename, options);
+  // Edit only the text inside the uniquely marked element. User input is set
+  // as a text node, never interpreted as HTML.
+  function replaceSlogan(html, newSlogan) {
+    const parsed = new DOMParser().parseFromString(html, "text/html");
+    const elements = parsed.querySelectorAll(
+      "[" + TARGET_ATTRIBUTE + '="' + TARGET_VALUE + '"]'
+    );
+    if (elements.length !== 1) {
+      throw new Error(
+        "Expected exactly one slogan element; found " + elements.length + ". No file was changed."
+      );
+    }
+    const element = elements[0];
+    while (element.firstChild) element.removeChild(element.firstChild);
+    element.appendChild(parsed.createTextNode(newSlogan));
+    return "<!doctype html>\n" + parsed.documentElement.outerHTML;
   }
 
   async function selectWebsiteFolder() {
     if (!("showDirectoryPicker" in window)) {
-      browserNotice.innerHTML =
-        "<strong>Unsupported browser</strong><p>Open this page in a current version of Chrome or Edge to grant access to a local project folder.</p>";
+      browserNotice.replaceChildren();
+      const strong = document.createElement("strong");
+      strong.textContent = "Unsupported browser";
+      const paragraph = document.createElement("p");
+      paragraph.textContent = "Open this page in a current version of Chrome or Edge to grant access to a local project folder.";
+      browserNotice.append(strong, paragraph);
       setStatus("This browser does not support local folder access.", "error");
       return;
     }
 
     try {
-      rootHandle = await window.showDirectoryPicker({ mode: "readwrite" });
-      siteDirectoryHandle = await rootHandle.getDirectoryHandle("site");
-      fileHandle = await getFile(siteDirectoryHandle, "index.html");
-      const file = await fileHandle.getFile();
-      originalHtml = await file.text();
-      currentFileName = file.name;
+      const selectedRoot = await window.showDirectoryPicker({ mode: "readwrite" });
+      const selectedSite = await selectedRoot.getDirectoryHandle("site");
+      const selectedFile = await selectedSite.getFileHandle("index.html");
+      const loadedHtml = await (await selectedFile.getFile()).text();
+      const slogan = readSlogan(loadedHtml);
 
-      const slogan = readSlogan(originalHtml);
+      // Store handles only after the chosen folder passes validation.
+      siteDirectoryHandle = selectedSite;
+      fileHandle = selectedFile;
+      originalHtml = loadedHtml;
       sloganInput.disabled = false;
       saveButton.disabled = false;
       sloganInput.value = slogan;
       currentSlogan.textContent = slogan || "(empty slogan)";
-      setConnected(rootHandle.name, "Connected to site/index.html");
+      setConnected(selectedRoot.name, "Connected to site/index.html");
       setStatus("Website file loaded. No changes have been made.", "success");
     } catch (error) {
       if (error?.name === "AbortError") {
         setStatus("Folder selection cancelled. No changes were made.");
         return;
       }
-      rootHandle = null;
       siteDirectoryHandle = null;
       fileHandle = null;
+      originalHtml = "";
       sloganInput.disabled = true;
       saveButton.disabled = true;
-      setStatus(error?.message || "Could not open the selected website folder.", "error");
       connection.classList.remove("connected");
       connectionLabel.textContent = "No website selected";
       connectionSub.textContent = "Select the repository root folder";
       connectButton.textContent = "Select website folder";
+      setStatus(error?.message || "Could not open the selected website folder.", "error");
     }
   }
 
@@ -129,20 +126,14 @@
     setStatus("Checking file and creating backup…");
 
     try {
-      // Re-read immediately before writing to avoid overwriting unrelated edits.
-      const latestFile = await fileHandle.getFile();
-      const latestHtml = await latestFile.text();
-      const latestSlogan = readSlogan(latestHtml);
-      const originalSlogan = readSlogan(originalHtml);
-
-      if (latestHtml !== originalHtml && latestSlogan !== originalSlogan) {
-        throw new Error("The file changed since you loaded it. Re-select the folder to review the latest version before saving.");
+      const latestHtml = await (await fileHandle.getFile()).text();
+      // Any intervening edit requires a reload to prevent overwriting changes.
+      if (latestHtml !== originalHtml) {
+        throw new Error("The HTML file changed since you loaded it. Re-select the folder to reload and review it before saving.");
       }
 
-      // Store a timestamped backup beside the source file, inside the site's own
-      // directory. It is deliberately not saved over the original file.
-      const backupName = "index.html.backup-" + new Date()
-        .toISOString().replace(/[:.]/g, "-");
+      const backupName = "index.html.backup-" +
+        new Date().toISOString().replace(/[:.]/g, "-");
       const backupHandle = await siteDirectoryHandle.getFileHandle(backupName, { create: true });
       const backupWritable = await backupHandle.createWritable();
       await backupWritable.write(latestHtml);
