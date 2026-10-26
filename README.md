@@ -1,38 +1,31 @@
 # Lux Omni Blog Developer Console
 
-A browser-based editor for the local Lux Omni Blog source files. This console is hosted separately from the main blog.
+Browser-based controls for Topbar content in a locally selected website project.
 
-## Connect a project
+## Workflow
 
-1. Open the GitHub Pages console in current Chrome or Edge.
-2. Click **Select project folder**.
-3. Select the root of your local `Lux-Omni-Blog` repository — the folder containing `site/`.
-4. Grant read/write access.
+1. Open in a current Chrome or Edge browser.
+2. Choose the website project's root folder; the folder may have any name.
+3. The console automatically locates the HTML file containing `data-config-key="topbarSlogan"`. It prefers `site/index.html`, then root-level `index.html`, then searches HTML files in the project.
+4. Edit the slogan, newsletter link, social destinations, email link and About link in the main workspace.
+5. Click **Save changes** to write directly to the selected local HTML file. There is no backup download or review screen. Open the site preview separately to check the result.
 
-## Topbar actions
+## Topbar settings
 
-- **Disconnect** releases the active file references but keeps the remembered project details and folder handle in browser storage.
-- **Reconnect project** attempts to restore the remembered folder permission.
-- **Choose another folder** lets you select a different local project that contains `site/index.html`.
-- **Clear local data** removes this console's saved `localStorage` settings and IndexedDB folder handle. It does not change or delete project files; selecting the project folder again is required afterward.
+- Slogan text.
+- Newsletter link text and destination.
+- Facebook, Instagram, X, YouTube and GitHub destinations.
+- Email link text and email address.
+- About link text and destination.
 
-When disconnected, the console remembers the last project name and relative file path. It does not claim the project is currently writable until a connection has been restored.
+The editor updates only these Topbar elements and preserves the rest of the HTML source. This first module manages Topbar content and links; it is not yet a general HTML/CSS/JavaScript editor.
 
-## Current setting
+## Project connection
 
-The **Topbar slogan** control targets the span in `site/index.html` marked `data-config-key="topbarSlogan"`. The editor replaces only that span's text and preserves the surrounding HTML source. Before writing, it requests a downloadable backup of the original `index.html`.
+The Developer Console topbar displays the selected project folder name and connection status. The Topbar workspace displays the HTML file selected automatically from inside the project. `localStorage` saves the remembered project details and IndexedDB stores the folder handle.
 
-## How browser storage works
+- **Disconnect** pauses the connection while preserving remembered settings.
+- **Choose another folder** switches projects.
+- **Clear local data** removes the console's saved project details and remembered folder handle from this browser. It does not alter website files.
 
-- `localStorage` saves the project display name, relative target path, saved slogan, unsaved draft, and explicit disconnect state.
-- IndexedDB stores the File System Access directory handle, because the handle itself cannot be stored directly in localStorage.
-- The browser can restore a saved handle only if it still exists and browser permission allows it. If permission is no longer granted, click **Reconnect project** or **Choose another folder**.
-- A complete absolute local filesystem path is not exposed portably to the webpage; the console displays the chosen folder name and relative file path.
-- Clearing site data, using a different browser profile, or browser permission changes can require selecting the project again.
-
-## Publishing and safety
-
-- GitHub Pages serves the console only. It does not push or commit changes to the blog repository.
-- After saving, review the real local change in VS Code/Git, then commit and push manually.
-- The console only writes into the directory the user selects and only edits the known slogan element.
-- Use only a console version you trust, as it has write access to the folder you authorize.
+Saving writes to the selected local project; it does not push to GitHub. Use your normal Git workflow to publish.
