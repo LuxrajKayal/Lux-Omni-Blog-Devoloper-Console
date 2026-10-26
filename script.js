@@ -14,6 +14,7 @@
   const connectionPath = $("#connection-path");
   const browserNotice = $("#browser-notice");
   const storageLabel = $("#storage-label");
+  const clearLocalDataButton = $("#clear-local-data-button");
 
   const STORAGE_KEY = "luxOmniDeveloperConsole.settings.v1";
   const DB_NAME = "luxOmniDeveloperConsole.handles.v1";
@@ -317,6 +318,58 @@
     updateTopbarActions();
   }
 
+  function deleteHandleDatabase() {
+    return new Promise((resolve, reject) => {
+      if (!("indexedDB" in window)) {
+        resolve();
+        return;
+      }
+      const request = indexedDB.deleteDatabase(DB_NAME);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error || new Error("Could not delete the remembered folder handle."));
+      request.onblocked = () => reject(new Error("Browser storage is still in use. Close other console tabs and try again."));
+    });
+  }
+
+  async function clearLocalData() {
+    const confirmed = window.confirm(
+      "Clear all Lux Omni Developer Console data saved in this browser?\n\nThis removes the saved project settings, draft slogan, and remembered folder handle. It does not delete or change any website files. You will need to choose the project folder again."
+    );
+    if (!confirmed) return;
+
+    clearLocalDataButton.disabled = true;
+    setStatus("Clearing this console's saved browser data…");
+    try {
+      // Delete the directory handle first, then remove this app's settings key.
+      await deleteHandleDatabase();
+      localStorage.removeItem(STORAGE_KEY);
+
+      rememberedRootHandle = null;
+      rootHandle = null;
+      siteDirectoryHandle = null;
+      fileHandle = null;
+      originalHtml = "";
+      actualSlogan = "";
+      forceFolderPicker = false;
+
+      sloganInput.value = "";
+      sloganInput.disabled = true;
+      saveButton.disabled = true;
+      currentSlogan.textContent = "Not loaded";
+      storageLabel.textContent = "No saved settings in this browser";
+      browserNotice.hidden = false;
+
+      setConnection("disconnected", "No project connected", "Select your local blog folder");
+      setStatus("Local data cleared. Your website files were not changed.", "success");
+      updateTopbarActions();
+    } catch (error) {
+      setStatus(error?.message || "Could not clear all saved browser data. Try closing other console tabs and retrying.", "error");
+      storageLabel.textContent = "Could not clear all saved data";
+    } finally {
+      clearLocalDataButton.disabled = false;
+    }
+  }
+
   function downloadBackup(content) {
     const blob = new Blob([content], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -433,6 +486,7 @@
   connectButton.addEventListener("click", reconnectProject);
   chooseFolderButton.addEventListener("click", chooseProjectFolder);
   disconnectButton.addEventListener("click", disconnectProject);
+  clearLocalDataButton.addEventListener("click", clearLocalData);
   sloganInput.addEventListener("input", rememberDraft);
   saveButton.addEventListener("click", saveSlogan);
 
