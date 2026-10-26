@@ -14,6 +14,7 @@ A browser-based editor for the local Lux Omni Blog source files. This console is
 - **Disconnect** releases the active file references but keeps the remembered project details and folder handle in browser storage.
 - **Reconnect project** attempts to restore the remembered folder permission.
 - **Choose another folder** lets you select a different local project that contains `site/index.html`.
+- **Clear local data** removes this console's saved `localStorage` settings and IndexedDB folder handle. It does not change or delete project files; selecting the project folder again is required afterward.
 
 When disconnected, the console remembers the last project name and relative file path. It does not claim the project is currently writable until a connection has been restored.
 
