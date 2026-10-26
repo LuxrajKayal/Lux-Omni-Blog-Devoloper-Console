@@ -12,9 +12,7 @@
   const connectionSub = $("#connection-sub");
   const browserNotice = $("#browser-notice");
 
-  const TARGET_ATTRIBUTE = "data-config-key";
-  const TARGET_VALUE = "topbarSlogan";
-
+  const TARGET_MARKER = 'data-config-key="topbarSlogan"';
   let siteDirectoryHandle = null;
   let fileHandle = null;
   let originalHtml = "";
@@ -31,36 +29,46 @@
     connectButton.textContent = "Change website folder";
   }
 
-  function readSlogan(html) {
-    const parsed = new DOMParser().parseFromString(html, "text/html");
-    const elements = parsed.querySelectorAll(
-      "[" + TARGET_ATTRIBUTE + '="' + TARGET_VALUE + '"]'
-    );
-    if (elements.length !== 1) {
-      throw new Error(
-        'Expected exactly one element marked data-config-key="topbarSlogan" in site/index.html; found ' +
-        elements.length + "."
-      );
+  function findSloganMatch(html) {
+    const matches = [...html.matchAll(/<span\b[^>]*\bdata-config-key\s*=\s*["']topbarSlogan["'][^>]*>[\s\S]*?<\/span\s*>/gi)];
+    if (matches.length !== 1) {
+      throw new Error('Expected exactly one span marked data-config-key="topbarSlogan" in site/index.html; found ' + matches.length + ".");
     }
-    return elements[0].textContent ?? "";
+    return matches[0];
   }
 
-  // Edit only the text inside the uniquely marked element. User input is set
-  // as a text node, never interpreted as HTML.
+  function decodeHtmlText(value) {
+    const parsed = new DOMParser().parseFromString(value, "text/html");
+    return parsed.body.textContent ?? "";
+  }
+
+  function readSlogan(html) {
+    const match = findSloganMatch(html);
+    const tagEnd = match[0].indexOf(">");
+    const closeStart = match[0].toLowerCase().lastIndexOf("</span");
+    return decodeHtmlText(match[0].slice(tagEnd + 1, closeStart));
+  }
+
+  function escapeHtmlText(value) {
+    return value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  // Replace only the text inside the matching span, preserving every other
+  // source byte, including whitespace, comments, attributes and formatting.
   function replaceSlogan(html, newSlogan) {
-    const parsed = new DOMParser().parseFromString(html, "text/html");
-    const elements = parsed.querySelectorAll(
-      "[" + TARGET_ATTRIBUTE + '="' + TARGET_VALUE + '"]'
-    );
-    if (elements.length !== 1) {
-      throw new Error(
-        "Expected exactly one slogan element; found " + elements.length + ". No file was changed."
-      );
-    }
-    const element = elements[0];
-    while (element.firstChild) element.removeChild(element.firstChild);
-    element.appendChild(parsed.createTextNode(newSlogan));
-    return "<!doctype html>\n" + parsed.documentElement.outerHTML;
+    const match = findSloganMatch(html);
+    const matchedElement = match[0];
+    const tagEnd = matchedElement.indexOf(">");
+    const closeStart = matchedElement.toLowerCase().lastIndexOf("</span");
+    const updatedElement =
+      matchedElement.slice(0, tagEnd + 1) +
+      escapeHtmlText(newSlogan) +
+      matchedElement.slice(closeStart);
+    return html.slice(0, match.index) + updatedElement +
+      html.slice(match.index + matchedElement.length);
   }
 
   async function selectWebsiteFolder() {
@@ -82,7 +90,6 @@
       const loadedHtml = await (await selectedFile.getFile()).text();
       const slogan = readSlogan(loadedHtml);
 
-      // Store handles only after the chosen folder passes validation.
       siteDirectoryHandle = selectedSite;
       fileHandle = selectedFile;
       originalHtml = loadedHtml;
@@ -110,6 +117,19 @@
     }
   }
 
+  function downloadBackup(content) {
+    // Back up to Downloads rather than the site's publish directory, so a
+    // backup file is not accidentally included in the public deployment.
+    const blob = new Blob([content], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "lux-omni-index-backup-" +
+      new Date().toISOString().replace(/[:.]/g, "-") + ".html";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+  }
+
   async function saveSlogan() {
     if (!fileHandle || !siteDirectoryHandle) {
       setStatus("Select your website folder first.", "error");
@@ -127,17 +147,12 @@
 
     try {
       const latestHtml = await (await fileHandle.getFile()).text();
-      // Any intervening edit requires a reload to prevent overwriting changes.
       if (latestHtml !== originalHtml) {
         throw new Error("The HTML file changed since you loaded it. Re-select the folder to reload and review it before saving.");
       }
 
-      const backupName = "index.html.backup-" +
-        new Date().toISOString().replace(/[:.]/g, "-");
-      const backupHandle = await siteDirectoryHandle.getFileHandle(backupName, { create: true });
-      const backupWritable = await backupHandle.createWritable();
-      await backupWritable.write(latestHtml);
-      await backupWritable.close();
+      // Save a copy to the browser's Downloads instead of the public site folder.
+      downloadBackup(latestHtml);
 
       const updatedHtml = replaceSlogan(latestHtml, newSlogan);
       const writable = await fileHandle.createWritable();
@@ -146,7 +161,7 @@
 
       originalHtml = updatedHtml;
       currentSlogan.textContent = newSlogan || "(empty slogan)";
-      setStatus("Saved to site/index.html. Git can now detect the change.", "success");
+      setStatus("Saved to site/index.html. A backup download was requested; Git can now detect the change.", "success");
     } catch (error) {
       setStatus(error?.message || "Could not save the slogan.", "error");
     } finally {
