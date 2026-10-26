@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A local-file editor for Lux Omni Blog, running in your browser.">
+  <title>Lux Omni · Developer Console</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="Lux Omni Developer Console home">
+      <span class="brand-mark">L</span>
+      <span><strong> LUX OMNI</strong><small>DEVELOPER CONSOLE</small></span>
+    </a>
+    <span class="local-badge"><span></span> Browser-based editor</span>
+  </header>
+
+  <main class="app-shell">
+    <aside class="sidebar">
+      <p class="eyebrow">WORKSPACE</p>
+      <button class="nav-item active" type="button"><span>◈</span> Website settings</button>
+      <div class="sidebar-note">
+        <strong>Your files stay yours.</strong>
+        <p>This page edits the local files you explicitly select. It does not upload them to this console's repository.</p>
+      </div>
+      <div class="connection">
+        <span class="status-dot" id="connection-dot"></span>
+        <div><strong id="connection-label">No website selected</strong><small id="connection-sub">Select your local project to begin</small></div>
+      </div>
+    </aside>
+
+    <section class="workspace">
+      <div class="page-heading">
+        <div>
+          <p class="eyebrow">LUX OMNI BLOG</p>
+          <h1>Website settings</h1>
+          <p class="intro">Edit selected website content and save it directly to your local project.</p>
+        </div>
+        <button id="connect-button" class="button button-primary" type="button">Select website folder</button>
+      </div>
+
+      <div class="notice" id="browser-notice" role="status">
+        <strong>Local file access</strong>
+        <p>Use a supported browser such as Chrome or Edge. You will choose your blog folder and grant access before files can be read or changed.</p>
+      </div>
+
+      <section class="settings-card" aria-labelledby="topbar-title">
+        <div class="card-heading">
+          <div class="icon-tile">Aa</div>
+          <div><h2 id="topbar-title">Topbar slogan</h2><p>Change the slogan shown in your website's top information bar.</p></div>
+        </div>
+        <div class="field-group">
+          <label for="slogan-input">Slogan text</label>
+          <input id="slogan-input" type="text" maxlength="180" placeholder="Select your website folder first" disabled>
+          <p class="field-help">The editor targets the existing element marked <code>data-config-key="topbarSlogan"</code> in <code>site/index.html</code>.</p>
+        </div>
+        <div class="preview-row"><span>Current value</span><strong id="current-slogan">Not loaded</strong></div>
+        <div class="card-actions">
+          <span id="save-status" role="status" aria-live="polite">Select your website folder to start.</span>
+          <button id="save-button" class="button button-primary" type="button" disabled>Save to website file</button>
+        </div>
+      </section>
+
+      <section class="settings-card secondary-card">
+        <div class="card-heading">
+          <div class="icon-tile muted">✓</div>
+          <div><h2>Safe editing</h2><p>Small, targeted changes to your selected source file.</p></div>
+        </div>
+        <ul class="safety-list">
+          <li>Creates a timestamped backup before saving.</li>
+          <li>Edits only the slogan element, preserving the rest of the HTML.</li>
+          <li>Git and VS Code remain your review and publishing workflow.</li>
+        </ul>
+      </section>
+      <footer>Lux Omni Developer Console <span>·</span> Local files · Manual Git workflow</footer>
+    </section>
+  </main>
+</body>
+</html>
