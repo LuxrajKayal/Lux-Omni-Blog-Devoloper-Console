@@ -55,7 +55,9 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
 }
 .brand-copy strong { display: block; font-size: 12px; font-weight: 800; letter-spacing: .17em; }
 .brand-copy small { display: block; margin-top: 5px; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .15em; }
-.topbar-tools { display: flex; align-items: center; justify-content: flex-end; gap: 18px; min-width: 0; }
+.topbar-tools { display: flex; align-items: center; justify-content: flex-end; gap: 14px; min-width: 0; }
+.topbar-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.topbar-actions [hidden] { display: none !important; }
 .connection-status {
   display: flex;
   align-items: center;
@@ -82,6 +84,10 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
 .button-primary { border-color: var(--accent); background: var(--accent); color: white; }
 .button-primary:hover:not(:disabled) { border-color: var(--accent-hover); background: var(--accent-hover); }
 .button-primary:disabled { border-color: #723237; background: #723237; color: #eee; }
+.button-secondary { border-color: #414653; background: #22252e; color: #e7e9f0; }
+.button-secondary:hover:not(:disabled) { border-color: #62697a; background: #2b2f3a; }
+.button-danger { border-color: #64343a; background: #281b20; color: #ff9ba0; }
+.button-danger:hover:not(:disabled) { border-color: #93414a; background: #3a2026; }
 
 .app-shell { display: grid; grid-template-columns: 238px minmax(0, 1fr); min-height: calc(100vh - 78px); }
 .sidebar { display: flex; flex-direction: column; gap: 17px; padding: 29px 16px 20px; border-right: 1px solid var(--line); background: #14151b; }
@@ -149,6 +155,7 @@ input:disabled { color: #989eab; }
 @media (max-width: 850px) {
   .topbar { gap: 14px; padding-inline: 18px; }
   .topbar-tools { gap: 12px; }
+  .topbar-actions { gap: 7px; }
   .status-copy strong { max-width: 175px; }
   .status-copy small { max-width: 195px; }
   .app-shell { grid-template-columns: 200px minmax(0, 1fr); }
@@ -158,7 +165,8 @@ input:disabled { color: #989eab; }
 @media (max-width: 650px) {
   .topbar { min-height: unset; align-items: flex-start; flex-direction: column; padding: 14px 16px; }
   .brand-mark { width: 37px; height: 37px; }
-  .topbar-tools { width: 100%; justify-content: space-between; gap: 10px; }
+  .topbar-tools { width: 100%; align-items: flex-start; flex-wrap: wrap; justify-content: space-between; gap: 10px; }
+  .topbar-actions { width: 100%; justify-content: flex-start; }
   .status-copy strong { max-width: 48vw; }
   .status-copy small { max-width: 48vw; }
   .button { min-height: 39px; padding-inline: 11px; font-size: 10px; }
