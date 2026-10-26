@@ -19,11 +19,13 @@
   const DB_HANDLE_KEY = "blog-root";
   const TARGET_VALUE = "topbarSlogan";
 
+  let rememberedRootHandle = null;
   let rootHandle = null;
   let siteDirectoryHandle = null;
   let fileHandle = null;
   let originalHtml = "";
   let actualSlogan = "";
+  let forceFolderPicker = false;
 
   function setStatus(message, type = "") {
     saveStatus.textContent = message;
@@ -60,7 +62,7 @@
   function openHandleDatabase() {
     return new Promise((resolve, reject) => {
       if (!("indexedDB" in window)) {
-        reject(new Error("This browser cannot remember the folder connection."));
+        reject(new Error("This browser cannot remember the folder handle."));
         return;
       }
       const request = indexedDB.open(DB_NAME, 1);
@@ -79,8 +81,8 @@
       const transaction = db.transaction(DB_STORE, "readwrite");
       transaction.objectStore(DB_STORE).put(handle, DB_HANDLE_KEY);
       transaction.oncomplete = resolve;
-      transaction.onerror = () => reject(transaction.error || new Error("Could not remember the folder connection."));
-      transaction.onabort = () => reject(transaction.error || new Error("Folder connection storage was interrupted."));
+      transaction.onerror = () => reject(transaction.error || new Error("Could not remember the folder handle."));
+      transaction.onabort = () => reject(transaction.error || new Error("Folder handle storage was interrupted."));
     }).finally(() => db.close());
   }
 
@@ -90,23 +92,13 @@
       const transaction = db.transaction(DB_STORE, "readonly");
       const request = transaction.objectStore(DB_STORE).get(DB_HANDLE_KEY);
       request.onsuccess = () => resolve(request.result || null);
-      request.onerror = () => reject(request.error || new Error("Could not read the remembered folder connection."));
+      request.onerror = () => reject(request.error || new Error("Could not read the remembered folder handle."));
       transaction.oncomplete = () => db.close();
       transaction.onerror = () => {
         db.close();
-        reject(transaction.error || new Error("Could not read the remembered folder connection."));
+        reject(transaction.error || new Error("Could not read the remembered folder handle."));
       };
     });
-  }
-
-  async function clearStoredRootHandle() {
-    const db = await openHandleDatabase();
-    await new Promise((resolve, reject) => {
-      const transaction = db.transaction(DB_STORE, "readwrite");
-      transaction.objectStore(DB_STORE).delete(DB_HANDLE_KEY);
-      transaction.oncomplete = resolve;
-      transaction.onerror = () => reject(transaction.error || new Error("Could not clear the saved folder connection."));
-    }).finally(() => db.close());
   }
 
   function findSloganMatch(html) {
@@ -133,7 +125,7 @@
     return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
-  // Replace just the text inside the marked span and preserve all other source bytes.
+  // Replace only the text inside the marked span, preserving all other source bytes.
   function replaceSlogan(html, newSlogan) {
     const match = findSloganMatch(html);
     const element = match[0];
@@ -146,6 +138,7 @@
   }
 
   function renderConnected(root, slogan, loadedHtml) {
+    rememberedRootHandle = root;
     rootHandle = root;
     originalHtml = loadedHtml;
     actualSlogan = slogan;
@@ -159,7 +152,7 @@
       stored.draftSlogan !== slogan;
     sloganInput.value = canRestoreDraft ? stored.draftSlogan : slogan;
 
-    setConnection("connected", root.name, "Connected · site/index.html");
+    setConnection("connected", "Connected · " + root.name, "Writable · site/index.html");
     connectButton.textContent = "Change project folder";
     saveSettings({
       projectName: root.name,
@@ -170,14 +163,13 @@
     });
 
     if (canRestoreDraft) {
-      setStatus("Restored your unsaved slogan draft from this browser. Review it before saving.", "");
+      setStatus("Restored your unsaved slogan draft. Review it before saving.", "");
     } else {
       setStatus("Project connected. No unsaved changes.", "success");
     }
   }
 
-  async function loadProjectFromRoot(root, rememberHandle = true) {
-    // Validate the exact expected file before updating the visible connection.
+  async function loadProjectFromRoot(root, persistHandle = true) {
     const selectedSite = await root.getDirectoryHandle("site");
     const selectedFile = await selectedSite.getFileHandle("index.html");
     const loadedHtml = await (await selectedFile.getFile()).text();
@@ -185,27 +177,33 @@
 
     siteDirectoryHandle = selectedSite;
     fileHandle = selectedFile;
+    forceFolderPicker = false;
     renderConnected(root, slogan, loadedHtml);
 
-    if (rememberHandle) {
+    if (persistHandle) {
       try {
         await storeRootHandle(root);
-      } catch {
-        setStatus("Connected for this session. This browser could not persist the folder handle; you may need to select it again later.", "");
+        setStatus("Connected. This browser has remembered the project handle.", "success");
+      } catch (error) {
+        setStatus("Connected for this session, but the browser couldn't save the folder handle. You may need to select it again next time.", "");
       }
     }
   }
 
-  function showDisconnectedFromSavedState(saved) {
+  function showDisconnectedFromSavedState(saved, hasStoredHandle = false) {
     sloganInput.disabled = true;
     saveButton.disabled = true;
     if (saved.projectName) {
-      setConnection("permission", "Project remembered", saved.projectDisplayPath || saved.projectName + "/site/index.html");
-      connectButton.textContent = "Reconnect project";
-      setStatus("Your project name and settings are remembered. Reconnect the folder to edit its file.");
-      if (typeof saved.draftSlogan === "string") {
-        sloganInput.value = saved.draftSlogan;
-      }
+      setConnection(
+        "permission",
+        hasStoredHandle ? "Project remembered · permission needed" : "Project details remembered",
+        saved.projectDisplayPath || saved.projectName + "/site/index.html"
+      );
+      connectButton.textContent = hasStoredHandle ? "Reconnect project" : "Select project folder";
+      setStatus(hasStoredHandle
+        ? "Project details and folder handle are remembered. Click Reconnect project to restore access."
+        : "Project details are remembered, but this browser has no saved folder handle. Select the project folder again.");
+      if (typeof saved.draftSlogan === "string") sloganInput.value = saved.draftSlogan;
     } else {
       setConnection("disconnected", "No project connected", "Select your local blog folder");
       connectButton.textContent = "Select project folder";
@@ -215,17 +213,13 @@
 
   async function chooseProjectFolder() {
     if (!("showDirectoryPicker" in window)) {
-      browserNotice.replaceChildren();
-      const strong = document.createElement("strong");
-      strong.textContent = "Unsupported browser";
-      const paragraph = document.createElement("p");
-      paragraph.textContent = "Use a current version of Chrome or Edge to select and edit a local project folder.";
-      browserNotice.append(strong, paragraph);
-      setStatus("This browser does not support local folder access.", "error");
+      browserNotice.hidden = false;
+      setStatus("Use a current version of Chrome or Edge for local folder access.", "error");
       return;
     }
 
     try {
+      // This API call occurs directly from the button click to preserve user activation.
       const root = await window.showDirectoryPicker({ mode: "readwrite" });
       await loadProjectFromRoot(root, true);
       browserNotice.hidden = true;
@@ -235,35 +229,44 @@
         return;
       }
       setStatus(error?.message || "Could not open the selected project folder.", "error");
-      // Keep an existing connected project if selecting a new one failed.
-      if (!rootHandle) showDisconnectedFromSavedState(readSettings());
+      if (!rootHandle) {
+        const saved = readSettings();
+        setConnection("disconnected", saved.projectName ? "Project remembered" : "No project connected",
+          saved.projectDisplayPath || "Select your local blog folder");
+      }
     }
   }
 
   async function reconnectOrChooseFolder() {
-    // If already connected, the button means "change folder" and opens the picker.
     if (rootHandle && fileHandle) {
       await chooseProjectFolder();
       return;
     }
 
-    // The directory handle is stored in IndexedDB; localStorage stores only
-    // the human-readable folder label, relative file path and settings.
-    try {
-      const rememberedHandle = await getStoredRootHandle();
-      if (rememberedHandle) {
-        let permission = await rememberedHandle.queryPermission({ mode: "readwrite" });
-        if (permission !== "granted") {
-          permission = await rememberedHandle.requestPermission({ mode: "readwrite" });
-        }
+    if (!forceFolderPicker && rememberedRootHandle &&
+        typeof rememberedRootHandle.requestPermission === "function") {
+      try {
+        // Critical: request permission before awaiting any other operation, while
+        // the button click still has transient user activation.
+        const permissionRequest = rememberedRootHandle.requestPermission({ mode: "readwrite" });
+        const permission = await permissionRequest;
         if (permission === "granted") {
-          await loadProjectFromRoot(rememberedHandle, false);
+          await loadProjectFromRoot(rememberedRootHandle, false);
           browserNotice.hidden = true;
           return;
         }
+
+        forceFolderPicker = true;
+        setConnection("permission", "Permission not granted", "Select the project folder again to re-authorize access.");
+        connectButton.textContent = "Select project folder";
+        setStatus("The browser did not restore write permission. Select the project folder again to grant access.", "error");
+        return;
+      } catch (error) {
+        forceFolderPicker = true;
+        setStatus("Could not restore the saved folder permission. Select the project folder again.", "error");
+        connectButton.textContent = "Select project folder";
+        return;
       }
-    } catch {
-      // The handle may have been removed or browser storage may be unavailable.
     }
 
     await chooseProjectFolder();
@@ -319,6 +322,7 @@
         savedSlogan: newSlogan,
         draftSlogan: newSlogan
       });
+      setConnection("connected", "Connected · " + rootHandle.name, "Writable · site/index.html");
       setStatus("Saved to site/index.html. Review the diff in Git or VS Code before committing.", "success");
     } catch (error) {
       setStatus(error?.message || "Could not save the slogan.", "error");
@@ -328,22 +332,21 @@
   }
 
   function rememberDraft() {
+    if (rootHandle) saveSettings({ draftSlogan: sloganInput.value });
     const saved = readSettings();
-    if (saved.projectName) {
-      saveSettings({ draftSlogan: sloganInput.value });
-    }
     if (rootHandle && sloganInput.value !== actualSlogan) {
       setStatus("Unsaved change — click Save changes to update the local file.");
     } else if (rootHandle) {
       setStatus("No unsaved changes.");
     } else {
+      saveSettings({ draftSlogan: sloganInput.value });
       setStatus("Draft remembered in this browser. Connect the project to apply it.");
     }
   }
 
   async function initialize() {
     const saved = readSettings();
-    showDisconnectedFromSavedState(saved);
+    showDisconnectedFromSavedState(saved, false);
 
     if (!("showDirectoryPicker" in window)) {
       browserNotice.hidden = false;
@@ -351,23 +354,28 @@
       return;
     }
 
-    if (!saved.projectName) return;
-
     try {
-      const rememberedHandle = await getStoredRootHandle();
-      if (!rememberedHandle) return;
+      rememberedRootHandle = await getStoredRootHandle();
+      showDisconnectedFromSavedState(saved, Boolean(rememberedRootHandle));
+      if (!rememberedRootHandle) return;
 
-      const permission = await rememberedHandle.queryPermission({ mode: "readwrite" });
+      const permission = await rememberedRootHandle.queryPermission({ mode: "readwrite" });
       if (permission === "granted") {
-        await loadProjectFromRoot(rememberedHandle, false);
+        await loadProjectFromRoot(rememberedRootHandle, false);
         browserNotice.hidden = true;
       } else {
-        setConnection("permission", "Permission needed", saved.projectDisplayPath || saved.projectName + "/site/index.html");
+        setConnection(
+          "permission",
+          "Project remembered · permission needed",
+          saved.projectDisplayPath || saved.projectName + "/site/index.html"
+        );
         connectButton.textContent = "Reconnect project";
-        setStatus("Your project is remembered. Click Reconnect project to restore file access.");
+        setStatus("The browser remembers the folder. Click Reconnect project to restore write access.");
       }
-    } catch {
-      // Leave the last project details in localStorage and request selection on demand.
+    } catch (error) {
+      setConnection("permission", "Project details remembered", saved.projectDisplayPath || "Select your local blog folder");
+      connectButton.textContent = "Select project folder";
+      setStatus("Saved details are available, but the folder handle couldn't be restored. Select your project folder again.");
     }
   }
 
