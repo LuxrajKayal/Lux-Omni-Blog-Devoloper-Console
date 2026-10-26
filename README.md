@@ -25,5 +25,6 @@ The console does not push to GitHub and does not use a GitHub token. The local f
 - Use an up-to-date Chrome or Edge browser. The File System Access API is not supported uniformly by all browsers.
 - The GitHub Pages version is static HTTPS; it does not need Node.js or a backend.
 - The app cannot access local files without the permission you grant through the folder picker.
-- A timestamped backup of `site/index.html` is written into the selected `site/` directory before the source is changed. Backup files are named `index.html.backup-<timestamp>`.
+- Before saving, the console requests a downloadable HTML backup of the current `site/index.html` to your browser's Downloads location, then modifies the source file. Confirm the backup download if your browser asks.
+- It replaces only the text inside the marked slogan span, preserving the surrounding HTML source.
 - Only use a console version you trust, because it can write to the folder you select.
